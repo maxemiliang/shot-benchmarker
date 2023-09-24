@@ -1,0 +1,15 @@
+# action.yml
+name: 'SHOT Benchmarker'
+description: 'Runs the specified benchmark and optionally compares the result to the passed reference'
+inputs:
+  benchmark:
+    description: 'The benchmark to run (folder name from: https://github.com/andreaslundell/SHOT_benchmark_problems)'
+    default: "MINLP-convex-small"
+outputs:
+  time:
+    description: 'The time it took to run the benchmark'
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  args:
+    - ${{ inputs.benchmark }}
