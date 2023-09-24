@@ -1,9 +1,10 @@
-FROM python:3.9
-LABEL authors="maxemiliang"
-
+FROM python:3-buster AS builder
+ADD . /app
 WORKDIR /app
 
-COPY requirements.txt requirements.txt
-COPY run_benchmark.py run_benchmark.py
+# Install git
+RUN apt-get update && apt-get install -y git
 
-ENTRYPOINT ["python", "run_benchmarks.py"]
+# We are installing a dependency here directly into our app source dir
+RUN pip install --target=/app -r requirements.txt
+ENTRYPOINT ["python", "main.py"]

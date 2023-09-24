@@ -2,9 +2,18 @@
 name: 'SHOT Benchmarker'
 description: 'Runs the specified benchmark and optionally compares the result to the passed reference'
 inputs:
-  benchmark:
+  shot_executable:
+    description: 'The SHOT executable to run'
+    default: "shot"
+  benchmark_folder:
     description: 'The benchmark to run (folder name from: https://github.com/andreaslundell/SHOT_benchmark_problems)'
     default: "MINLP-convex-small"
+  benchmark_type:
+    description: 'The benchmark type to run, can be gms, nl or osil'
+    default: "nl"
+  benchmarks:
+    description: 'The benchmarks to run, can be a list of benchmarks or a single benchmark, defaults to all benchmarks'
+    default: ""
 outputs:
   time:
     description: 'The time it took to run the benchmark'
