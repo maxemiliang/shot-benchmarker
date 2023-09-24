@@ -19,6 +19,9 @@ def main():
     benchmark_type = os.environ.get("INPUT_BENCHMARK_TYPE")
     benchmarks = os.environ.get("INPUT_BENCHMARKS")
     shot_executable = os.environ.get("INPUT_SHOT_EXECUTABLE")
+    if benchmark_folder is None or benchmark_type is None or shot_executable is None:
+        print("Missing required input")
+        sys.exit(1)
     benchmark_files = []
     if benchmarks is None or benchmarks == "":
         benchmarks = "all"
