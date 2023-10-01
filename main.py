@@ -65,6 +65,9 @@ def main():
     for benchmark in benchmarks_paths:
         print(benchmark)
 
+    # Changes the working directory to the shot folder
+    os.chdir(os.path.dirname(shot_executable))
+
     # Run the benchmarks
     for benchmark in benchmarks_paths:
         print("Running benchmark: {0}".format(benchmark))
