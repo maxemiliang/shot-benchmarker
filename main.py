@@ -3,6 +3,7 @@ import sys
 from git import Repo, exc
 import xml.etree.ElementTree as ET
 import json
+import subprocess
 
 
 # Checks if a path is a git repo
@@ -71,7 +72,7 @@ def main():
     # Run the benchmarks
     for benchmark in benchmarks_paths:
         print("Running benchmark: {0}".format(benchmark))
-        os.system("{0} {1}".format(shot_executable, benchmark))
+        subprocess.run([shot_executable, benchmark], capture_output=True)
 
     # Parse the XML files (osrl)
     bench_times = {}
