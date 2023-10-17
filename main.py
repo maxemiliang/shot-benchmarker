@@ -73,20 +73,6 @@ def main():
         print("Running benchmark: {0}".format(benchmark))
         os.system("{0} {1}".format(shot_executable, benchmark))
 
-    # Parse the XML files (osrl)
-    bench_times = {}
-    for benchmark in benchmarks:
-        tree = ET.parse('{0}.osrl'.format(benchmark))
-        root = tree.getroot()
-        times = {}
-        for element in root.iter('{os.optimizationservices.org}time'):
-            times[element.attrib['type']] = element.text
-        bench_times[benchmark] = times
-
-    # Write the results to a JSON file
-    with open('results.json', 'w') as fp:
-        json.dump(bench_times, fp)
-
 
 if __name__ == "__main__":
     main()
