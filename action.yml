@@ -14,11 +14,23 @@ inputs:
   benchmarks:
     description: 'The benchmarks to run, can be a list of benchmarks or a single benchmark, defaults to all benchmarks'
     default: ""
-outputs:
-  time:
-    description: 'The time it took to run the benchmark'
 runs:
-  using: 'docker'
-  image: 'Dockerfile'
-  args:
-    - ${{ inputs.benchmark }}
+  using: 'composite'
+  steps:
+    - uses: actions/setup-python@v4
+      with:
+        python-version: 3.11
+        cache: 'pip'
+
+    - shell: bash
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install -r requirements.txt
+
+    - shell: bash
+      env:
+        INPUT_BENCHMARK_FOLDER: ${{ inputs.benchmark_folder }}
+        INPUT_BENCHMARK_TYPE: ${{ inputs.benchmark_type }}
+        INPUT_BENCHMARKS: ${{ inputs.benchmarks  }}
+        INPUT_SHOT_EXECUTABLE: ${{ inputs.shot_executable }}
+      run: python main.py

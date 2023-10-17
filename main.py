@@ -1,8 +1,6 @@
 import os
 import sys
 from git import Repo, exc
-import xml.etree.ElementTree as ET
-import json
 
 
 # Checks if a path is a git repo
