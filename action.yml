@@ -17,15 +17,19 @@ inputs:
 runs:
   using: 'composite'
   steps:
+    - shell: bash
+      run: git clone https://github.com/maxemiliang/shot-benchmarker.git
+
+
     - uses: actions/setup-python@v4
       with:
         python-version: 3.11
         cache: 'pip'
+      working-directory: ${{ github.workspace }}/shot-benchmarker
 
     - shell: bash
-      run: |
-        python -m pip install --upgrade pip
-        python -m pip install -r requirements.txt
+      run: pip install -r requirements.txt
+      working-directory: ${{ github.workspace }}/shot-benchmarker
 
     - shell: bash
       env:
@@ -34,3 +38,4 @@ runs:
         INPUT_BENCHMARKS: ${{ inputs.benchmarks  }}
         INPUT_SHOT_EXECUTABLE: ${{ inputs.shot_executable }}
       run: python main.py
+      working-directory: ${{ github.workspace }}/shot-benchmarker
