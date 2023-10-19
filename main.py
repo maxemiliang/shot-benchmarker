@@ -21,7 +21,7 @@ def main():
         print("Missing required input")
         sys.exit(1)
     benchmark_files = []
-    if benchmarks is None or benchmarks == "":
+    if benchmarks is None or benchmarks == "" or benchmarks == 'all':
         benchmarks = "all"
     else:
         benchmarks = benchmarks.split(",")
@@ -63,6 +63,7 @@ def main():
     for benchmark in benchmarks_paths:
         print(benchmark)
 
+    print("Executing SHOT located at: {0}".format(shot_executable))
     # Changes the working directory to the shot folder
     os.chdir(os.path.dirname(shot_executable))
 
