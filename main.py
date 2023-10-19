@@ -79,6 +79,8 @@ def main():
     current_path = os.path.dirname(os.path.abspath(getsourcefile(lambda: 0)))
     os.mkdir("{0}/benchmarks/".format(current_path))
 
+    for benchmark in benchmarks_paths:
+        print(os.path.basename(benchmark).split(".")[0])
 
 if __name__ == "__main__":
     main()
