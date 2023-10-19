@@ -76,11 +76,17 @@ def main():
     with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
         print("benchmarks={0}".format(",".join(benchmarks)), file=fh)
 
+    # Move the osrl files to a separate folder.
     current_path = os.path.dirname(os.path.abspath(getsourcefile(lambda: 0)))
-    os.makedirs("{0}/benchmarks/".format(current_path), exist_ok=True)
-
+    benchmark_dest = "{0}/benchmarks".format(current_path)
+    os.makedirs(benchmark_dest, exist_ok=True)
+    benchmark_names = []
     for benchmark in benchmarks_paths:
-        print(os.path.basename(benchmark).split(".")[0])
+        benchmark_names.append(os.path.basename(benchmark).split(".")[0])
+
+    for benchmark in benchmark_names:
+        os.rename("{0}/{1}.osrl".format(os.path.dirname(shot_executable), benchmark),
+                  "{0}/{1}.osrl".format(benchmark_dest, benchmark))
 
 
 if __name__ == "__main__":
