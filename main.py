@@ -76,7 +76,7 @@ def main():
     with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
         print("benchmarks={0}".format(",".join(benchmarks)), file=fh)
 
-    current_path = os.path.abspath(getsourcefile(lambda: 0))
+    current_path = os.path.dirname(os.path.abspath(getsourcefile(lambda: 0)))
     os.mkdir("{0}/benchmarks/".format(current_path))
 
 
