@@ -72,6 +72,9 @@ def main():
         print("Running benchmark: {0}".format(benchmark))
         os.system("{0} {1}".format(shot_executable, benchmark))
 
+    with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
+        print("benchmarks={0}".format(",".join(benchmarks)), file=fh)
+
 
 if __name__ == "__main__":
     main()
