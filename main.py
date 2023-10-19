@@ -1,6 +1,7 @@
 import os
 import sys
 from git import Repo, exc
+from inspect import getsourcefile
 
 
 # Checks if a path is a git repo
@@ -74,6 +75,9 @@ def main():
 
     with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
         print("benchmarks={0}".format(",".join(benchmarks)), file=fh)
+
+    current_path = os.path.abspath(getsourcefile(lambda: 0))
+    os.mkdir("{0}/benchmarks/".format(current_path))
 
 
 if __name__ == "__main__":
