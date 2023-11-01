@@ -75,7 +75,7 @@ def main():
     for benchmark in benchmarks_paths:
         print("Running benchmark: {0}".format(benchmark))
         benchmark_name = os.path.basename(benchmark).split(".")[0]
-        os.system("{0} {1} --trc {2}.trc".format(shot_executable, benchmark, benchmark_name))
+        os.system("{0} {1} --trc {2}.trc --log {2}.log".format(shot_executable, benchmark, benchmark_name))
 
     with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
         print("benchmarks={0}".format(",".join(benchmarks)), file=fh)
@@ -93,6 +93,8 @@ def main():
                   "{0}/{1}.osrl".format(benchmark_dest, benchmark))
         os.rename("{0}/{1}.trc".format(os.path.dirname(shot_executable), benchmark),
                   "{0}/{1}.trc".format(benchmark_dest, benchmark))
+        os.rename("{0}/{1}.log".format(os.path.dirname(shot_executable), benchmark),
+                  "{0}/{1}.log".format(benchmark_dest, benchmark))
 
         # We parse the osrl files and extract the needed information.
     bench_times = {}
