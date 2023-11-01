@@ -117,7 +117,7 @@ def main():
         data.append(
             [
                 benchmark,
-                bench_times[benchmark]["total"],
+                bench_times[benchmark]["Total"],
                 statuses[benchmark]["status"],
                 statuses[benchmark]["substatus"]
             ]
