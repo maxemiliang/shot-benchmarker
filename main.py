@@ -103,7 +103,6 @@ def main():
             times[element.attrib['type']] = element.text
         bench_times[benchmark] = times
 
-        statuses = {}
         for element in root.iter('{os.optimizationservices.org}status'):
             statuses[benchmark]['status'] = element.attrib['type']
 
