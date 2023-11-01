@@ -105,10 +105,10 @@ def main():
 
         statuses = {}
         for element in root.iter('{os.optimizationservices.org}status'):
-            statuses['status'] = element.attrib['type']
+            statuses[benchmark]['status'] = element.attrib['type']
 
         for element in root.iter('{os.optimizationservices.org}substatus'):
-            statuses['substatus'] = element.attrib['type']
+            statuses[benchmark]['substatus'] = element.attrib['type']
 
     # We generate the Markdown table
     headers = ["Benchmark", "Total Time", "Status", "Substatus"]
