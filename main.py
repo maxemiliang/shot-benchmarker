@@ -2,6 +2,7 @@ import os
 import sys
 from git import Repo, exc
 from inspect import getsourcefile
+import xml.etree.ElementTree as ET
 
 
 # Checks if a path is a git repo
@@ -71,7 +72,8 @@ def main():
     # Run the benchmarks
     for benchmark in benchmarks_paths:
         print("Running benchmark: {0}".format(benchmark))
-        os.system("{0} {1}".format(shot_executable, benchmark))
+        benchmark_name = os.path.basename(benchmark).split(".")[0]
+        os.system("{0} {1} --trc {2}.trc".format(shot_executable, benchmark, benchmark_name))
 
     with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
         print("benchmarks={0}".format(",".join(benchmarks)), file=fh)
@@ -87,6 +89,63 @@ def main():
     for benchmark in benchmark_names:
         os.rename("{0}/{1}.osrl".format(os.path.dirname(shot_executable), benchmark),
                   "{0}/{1}.osrl".format(benchmark_dest, benchmark))
+        os.rename("{0}/{1}.trc".format(os.path.dirname(shot_executable), benchmark),
+                  "{0}/{1}.trc".format(benchmark_dest, benchmark))
+
+        # We parse the osrl files and extract the needed information.
+    bench_times = {}
+    statuses = {}
+    for benchmark in benchmark_names:
+        tree = ET.parse('{0}/{1}.osrl'.format(benchmark_dest, benchmark))
+        root = tree.getroot()
+        times = {}
+        for element in root.iter('{os.optimizationservices.org}time'):
+            times[element.attrib['type']] = element.text
+        bench_times[benchmark] = times
+
+        statuses = {}
+        for element in root.iter('{os.optimizationservices.org}status'):
+            statuses['status'] = element.attrib['type']
+
+        for element in root.iter('{os.optimizationservices.org}substatus'):
+            statuses['substatus'] = element.attrib['type']
+
+    # We generate the Markdown table
+    headers = ["Benchmark", "Total Time", "Status", "Substatus"]
+    data = []
+    for benchmark in benchmark_names:
+        data.append(
+            [
+                benchmark,
+                bench_times[benchmark]["total"],
+                statuses[benchmark]["status"],
+                statuses[benchmark]["substatus"]
+            ]
+        )
+
+    markdown_table = generate_markdown_table(headers, data)
+    # We write the Markdown table to the output file
+    with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as fh:
+        print('# Benchmark results', file=fh)
+        print(markdown_table, file=fh)
+
+
+# Handles generating the Markdown table, used in GH Actions Job Summary.
+def generate_markdown_table(headers, data):
+    # Create the header row
+    header_row = "| " + " | ".join(headers) + " |"
+    # Create the separator row
+    separator_row = "| " + " | ".join(["---" for _ in headers]) + " |"
+    # Create the data rows
+    data_rows = []
+    for row in data:
+        data_rows.append("| " + " | ".join(map(str, row)) + " |")
+
+    # Combine all parts of the table
+    markdown_table = [header_row, separator_row] + data_rows
+
+    # Return the table as a string
+    return "\n".join(markdown_table)
 
 
 if __name__ == "__main__":
