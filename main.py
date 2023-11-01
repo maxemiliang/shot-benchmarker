@@ -1,5 +1,7 @@
 import os
 import sys
+from collections import defaultdict
+
 from git import Repo, exc
 from inspect import getsourcefile
 import xml.etree.ElementTree as ET
@@ -94,7 +96,7 @@ def main():
 
         # We parse the osrl files and extract the needed information.
     bench_times = {}
-    statuses = {}
+    statuses = defaultdict(lambda: {"status": "", "substatus": ""})
     for benchmark in benchmark_names:
         tree = ET.parse('{0}/{1}.osrl'.format(benchmark_dest, benchmark))
         root = tree.getroot()
