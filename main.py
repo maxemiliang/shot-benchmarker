@@ -1,9 +1,7 @@
 import os
 import sys
 from git import Repo, exc
-import xml.etree.ElementTree as ET
-import json
-import subprocess
+from inspect import getsourcefile
 
 
 # Checks if a path is a git repo
@@ -24,7 +22,7 @@ def main():
         print("Missing required input")
         sys.exit(1)
     benchmark_files = []
-    if benchmarks is None or benchmarks == "":
+    if benchmarks is None or benchmarks == "" or benchmarks == 'all':
         benchmarks = "all"
     else:
         benchmarks = benchmarks.split(",")
@@ -66,27 +64,29 @@ def main():
     for benchmark in benchmarks_paths:
         print(benchmark)
 
+    print("Executing SHOT located at: {0}".format(shot_executable))
     # Changes the working directory to the shot folder
     os.chdir(os.path.dirname(shot_executable))
 
     # Run the benchmarks
     for benchmark in benchmarks_paths:
         print("Running benchmark: {0}".format(benchmark))
-        subprocess.run([shot_executable, benchmark], capture_output=True)
+        os.system("{0} {1}".format(shot_executable, benchmark))
 
-    # Parse the XML files (osrl)
-    bench_times = {}
-    for benchmark in benchmarks:
-        tree = ET.parse('{0}.osrl'.format(benchmark))
-        root = tree.getroot()
-        times = {}
-        for element in root.iter('{os.optimizationservices.org}time'):
-            times[element.attrib['type']] = element.text
-        bench_times[benchmark] = times
+    with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
+        print("benchmarks={0}".format(",".join(benchmarks)), file=fh)
 
-    # Write the results to a JSON file
-    with open('results.json', 'w') as fp:
-        json.dump(bench_times, fp)
+    # Move the osrl files to a separate folder.
+    current_path = os.path.dirname(os.path.abspath(getsourcefile(lambda: 0)))
+    benchmark_dest = "{0}/benchmarks".format(current_path)
+    os.makedirs(benchmark_dest, exist_ok=True)
+    benchmark_names = []
+    for benchmark in benchmarks_paths:
+        benchmark_names.append(os.path.basename(benchmark).split(".")[0])
+
+    for benchmark in benchmark_names:
+        os.rename("{0}/{1}.osrl".format(os.path.dirname(shot_executable), benchmark),
+                  "{0}/{1}.osrl".format(benchmark_dest, benchmark))
 
 
 if __name__ == "__main__":

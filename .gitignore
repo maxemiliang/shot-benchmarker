@@ -162,3 +162,8 @@ cython_debug/
 
 SHOT_benchmark_problems
 /results.json
+
+bin/
+include/
+lib/
+lib64/
