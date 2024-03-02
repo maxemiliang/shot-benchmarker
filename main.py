@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 from collections import defaultdict
 
 from git import Repo, exc
@@ -21,6 +22,7 @@ def main():
     benchmark_type = os.environ.get("INPUT_BENCHMARK_TYPE")
     benchmarks = os.environ.get("INPUT_BENCHMARKS")
     shot_executable = os.environ.get("INPUT_SHOT_EXECUTABLE")
+    is_ci = os.environ.get("CI") is not None
     if benchmark_folder is None or benchmark_type is None or shot_executable is None:
         print("Missing required input")
         sys.exit(1)
@@ -77,8 +79,9 @@ def main():
         benchmark_name = os.path.basename(benchmark).split(".")[0]
         os.system("{0} {1} --trc {2}.trc --log {2}.log".format(shot_executable, benchmark, benchmark_name))
 
-    with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
-        print("benchmarks={0}".format(",".join(benchmarks)), file=fh)
+    if is_ci:
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
+            print("benchmarks={0}".format(",".join(benchmarks)), file=fh)
 
     # Move the osrl files to a separate folder.
     current_path = os.path.dirname(os.path.abspath(getsourcefile(lambda: 0)))
@@ -128,9 +131,28 @@ def main():
 
     markdown_table = generate_markdown_table(headers, data)
     # We write the Markdown table to the output file
-    with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as fh:
-        print('# Benchmark results', file=fh)
-        print(markdown_table, file=fh)
+    if is_ci:
+        with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as fh:
+            print('# Benchmark results', file=fh)
+            print(markdown_table, file=fh)
+
+    comparison_data = []
+    for benchmark in benchmark_names:
+        comparison_data.append(
+            {
+                "name": benchmark,
+                "time": bench_times[benchmark]["Total"],
+                "status": statuses[benchmark]["status"],
+                "substatus": statuses[benchmark]["substatus"]
+            }
+        )
+
+    # Finally write the data to a file, and prepare it for upload
+    with open('data.json', 'w') as json_file:
+        json.dump(comparison_data, json_file, sort_keys=True, indent=4)
+
+    # Move the file to the benchmark destination.
+    os.rename("data.json", "{0}/data.json".format(benchmark_dest))
 
 
 # Handles generating the Markdown table, used in GH Actions Job Summary.
