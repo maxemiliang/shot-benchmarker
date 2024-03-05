@@ -26,6 +26,9 @@ def main():
     if benchmark_folder is None or benchmark_type is None or shot_executable is None:
         print("Missing required input")
         sys.exit(1)
+    if not os.path.isfile(shot_executable):
+        print("SHOT executable does not exist")
+        sys.exit(1)
     benchmark_files = []
     if benchmarks is None or benchmarks == "" or benchmarks == 'all':
         benchmarks = "all"
