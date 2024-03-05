@@ -2,10 +2,18 @@
 # Environment variables
 FILE=requirements.txt
 
+source project_2001223-openrc.sh
+
 cd ..
 export INPUT_BENCHMARK_FOLDER=MINLP-convex-small
 export INPUT_BENCHMARK_TYPE=nl
 export INPUT_SHOT_EXECUTABLE=/home/maxemilian/projects/master-thesis/shot-benchmarker/SHOT
+
+# Github specific stuff
+export GITHUB_REF_TYPE="branch"
+export GITHUB_REF_NAME="main"
+export GITHUB_RUN_NUMBER="1"
+
 if [ ! -d "venv" ]
 then
     python -m venv venv
