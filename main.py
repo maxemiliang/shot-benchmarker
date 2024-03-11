@@ -1,22 +1,28 @@
+import argparse
+import json
 import os
 import sys
-import json
-from collections import defaultdict
-from git import Repo, exc
-from inspect import getsourcefile
 import xml.etree.ElementTree as ET
+from collections import defaultdict
+from inspect import getsourcefile
+
+from git import Repo
 
 from allas import Allas
 from github_api import GithubAPI
 from github_data import GithubData
 from utils import is_git_repo
 
-gh_api = GithubAPI()
-gh_data = GithubData()
-allas = Allas()
-
 
 def main():
+    parser = argparse.ArgumentParser(
+        prog="Shot benchmarker",
+        description="Used to benchmark the SHOT program"
+    )
+    parser.add_argument("-c", "--compare", action="store_true")
+    parser.add_argument("-s", "--store-result", action="store_true")
+    args = parser.parse_args()
+
     benchmark_folder = os.environ.get("INPUT_BENCHMARK_FOLDER")
     benchmark_type = os.environ.get("INPUT_BENCHMARK_TYPE")
     benchmarks = os.environ.get("INPUT_BENCHMARKS")
@@ -157,12 +163,24 @@ def main():
     data_json = "{0}/data.json".format(benchmark_dest)
     os.rename("data.json", data_json)
 
-    gh_api.get_latest_completed_run()
+    if args.store_result:
+        handle_upload(data_json)
 
+    if args.compare:
+        handle_comparison(comparison_data)
+
+
+def handle_comparison(comparison_data):
+    pass
+
+
+def handle_upload(data_json):
+    gh_api = GithubAPI()
+    allas = Allas()
     # Create the bucket
     allas.create_bucket()
-
-    allas.upload_file(data_json)
+    current_commit = gh_api.get_commit_from_head(0)
+    allas.upload_file(current_commit.sha, data_json)
 
 
 # Handles generating the Markdown table, used in GH Actions Job Summary.

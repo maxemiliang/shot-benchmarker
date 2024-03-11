@@ -12,7 +12,7 @@ class GithubData:
             print("GH Actions environment not detected exiting")
             sys.exit(1)
 
-    def construct_valid_data(self):
+    def construct_valid_data(self, sha: str):
         path = os.path.normpath(
-            "{0}/{1}/{2}".format(self.gh_type, self.short_name, self.run_number))
+            "{0}/{1}/{2}".format(self.gh_type, self.short_name, sha))
         return os.path.join(path, '')

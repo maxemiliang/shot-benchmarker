@@ -24,9 +24,8 @@ _os_options = {
 class Allas:
     gh_data = GithubData()
 
-    def __init(self, bucket_name=None):
-        if bucket_name is not None:
-            self.bucket_name = bucket_name
+    def __init__(self, bucket_name='shot-benchmarks'):
+        self.bucket_name = bucket_name
         self.conn = swiftclient.Connection(
             authurl=_authurl,
             user=_user,
@@ -53,8 +52,8 @@ class Allas:
             self.conn.put_container(self.bucket_name)
 
     # Uploads the file to the correct place.
-    def upload_file(self, file):
-        path = self.gh_data.construct_valid_data()
+    def upload_file(self, sha: str, file: str):
+        path = self.gh_data.construct_valid_data(sha)
         if not path:
             return False
         path = "{0}data.json".format(path)
@@ -66,3 +65,4 @@ class Allas:
                 contents=f.read(),
                 content_type="application/json"
             )
+            print("File uploaded")
