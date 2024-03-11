@@ -11,7 +11,7 @@ export INPUT_SHOT_EXECUTABLE=/home/maxemilian/projects/master-thesis/shot-benchm
 
 # Github specific stuff
 export GITHUB_REF_TYPE="branch"
-export GITHUB_REF_NAME="main"
+export GITHUB_REF_NAME="feature/ci-cd-improvements"
 export GITHUB_RUN_NUMBER="1"
 
 if [ ! -d "venv" ]
