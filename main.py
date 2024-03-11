@@ -2,97 +2,18 @@ import os
 import sys
 import json
 from collections import defaultdict
-
 from git import Repo, exc
 from inspect import getsourcefile
 import xml.etree.ElementTree as ET
 
-from keystoneauth1 import session
-from keystoneauth1.identity import v3
-import os
-import swiftclient
-from swiftclient.multithreading import OutputManager
-from swiftclient.service import SwiftError, SwiftService, SwiftUploadObject
+from allas import Allas
+from github_api import GithubAPI
+from github_data import GithubData
+from utils import is_git_repo
 
-_authurl = os.environ['OS_AUTH_URL']
-_auth_version = os.environ['OS_IDENTITY_API_VERSION']
-_user = os.environ['OS_USERNAME']
-_key = os.environ['OS_PASSWORD']
-_os_options = {
-    'user_domain_name': os.environ['OS_USER_DOMAIN_NAME'],
-    'project_domain_name': os.environ['OS_USER_DOMAIN_NAME'],
-    'project_name': os.environ['OS_PROJECT_NAME']
-}
-
-conn = swiftclient.Connection(
-    authurl=_authurl,
-    user=_user,
-    key=_key,
-    os_options=_os_options,
-    auth_version=_auth_version
-)
-
-bucket_name = "shot-benchmarks"
-
-
-# Checks if a path is a git repo
-def is_git_repo(path):
-    try:
-        _ = Repo(path).git_dir
-        return True
-    except exc.InvalidGitRepositoryError:
-        return False
-
-
-# Creates the bucket if it does not exist.
-def create_bucket(containers):
-    # We create the container if it does not exist.
-    for container in containers:
-        if container['name'] == bucket_name:
-            # We can break here, this means the else block will not be executed.
-            break
-    else:
-        conn.put_container(bucket_name)
-
-
-def get_git_object():
-    gh_type = os.environ.get("GITHUB_REF_TYPE")
-    short_name = os.environ.get("GITHUB_REF_NAME")
-    run_number = os.environ.get("GITHUB_RUN_NUMBER")
-    return {
-        "type": gh_type,
-        "short_name": short_name,
-        "run_number": run_number
-    }
-
-
-def construct_valid_path(git_object):
-    if git_object["type"] is None or git_object["short_name"] is None or git_object["run_number"] is None:
-        print("Unable to get the current branch/ref name, wont upload the file")
-        return False
-
-    path = os.path.normpath(
-        "{0}/{1}/{2}".format(git_object["type"], git_object["short_name"], git_object["run_number"]))
-    return os.path.join(path, '')
-
-
-# Uploads the file to the correct place.
-def upload_file(file):
-    git_object = get_git_object()
-    if not git_object:
-        return False
-    path = construct_valid_path(git_object)
-    if not path:
-        return False
-    path = "{0}data.json".format(path)
-    with open(file, "r") as f:
-        print("Uploading file {0}".format(file))
-        conn.put_object(
-            bucket_name,
-            path,
-            contents=f.read(),
-            content_type="application/json"
-        )
+gh_api = GithubAPI()
+gh_data = GithubData()
+allas = Allas()
 
 
 def main():
@@ -107,12 +28,7 @@ def main():
     if not os.path.isfile(shot_executable):
         print("SHOT executable does not exist")
         sys.exit(1)
-    # We check the connection here.
-    try:
-        resp_headers, containers = conn.get_account()
-    except swiftclient.ClientException:
-        print("Error getting the acccount, check your swift credentials")
-        sys.exit(1)
+
     if benchmarks is None or benchmarks == "" or benchmarks == 'all':
         benchmarks = "all"
     else:
@@ -122,9 +38,9 @@ def main():
     repo_dir = os.path.join(os.getcwd(), "SHOT_benchmark_problems")
     if os.path.isdir(repo_dir) and is_git_repo(repo_dir):
         print("Repo already exists")
-        repo = Repo(repo_dir)
-        repo.git.checkout("main")
-        repo.git.pull()
+        bench_repo = Repo(repo_dir)
+        bench_repo.git.checkout("main")
+        bench_repo.git.pull()
     else:
         print("Cloning repo")
         Repo.clone_from("https://github.com/andreaslundell/SHOT_benchmark_problems.git", repo_dir)
@@ -241,10 +157,12 @@ def main():
     data_json = "{0}/data.json".format(benchmark_dest)
     os.rename("data.json", data_json)
 
-    # Create the bucket
-    create_bucket(containers)
+    gh_api.get_latest_completed_run()
 
-    upload_file(data_json)
+    # Create the bucket
+    allas.create_bucket()
+
+    allas.upload_file(data_json)
 
 
 # Handles generating the Markdown table, used in GH Actions Job Summary.
