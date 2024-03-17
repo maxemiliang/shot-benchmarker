@@ -39,8 +39,8 @@ class Allas:
         try:
             _, containers = self.conn.get_account()
             self.containers = containers
-        except swiftclient.ClientException:
-            print("Error getting the account, check your swift credentials")
+        except swiftclient.ClientException as e:
+            print("Error getting the account, check your swift credentials: {0}".format(e))
             sys.exit(1)
 
     # Creates the bucket if it does not exist.
