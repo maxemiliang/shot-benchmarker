@@ -76,7 +76,6 @@ class Allas:
     def download_file(self, sha: str, filename: str) -> None | str:
         path = self.gh_data.construct_valid_data(sha)
         path = "{0}data.json".format(path)
-        print(path)
         local_path = os.path.join('/tmp', filename)
         try:
             _, obj_contents = self.conn.get_object(self.bucket_name, path)
