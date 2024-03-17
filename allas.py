@@ -60,7 +60,7 @@ class Allas:
             return False
         path = "{0}data.json".format(path)
         with open(file, "r") as f:
-            print("Uploading file {0}".format(file))
+            print("Uploading file: {0}".format(path))
             try:
                 self.conn.put_object(
                     self.bucket_name,
@@ -68,7 +68,7 @@ class Allas:
                     contents=f.read(),
                     content_type="application/json"
                 )
-                print("File uploaded")
+                print("File uploaded: {0}".format(path))
                 return True
             except swiftclient.ClientException as e:
                 print("Error uploading file: {0}".format(e))
@@ -78,6 +78,7 @@ class Allas:
         path = "{0}data.json".format(path)
         local_path = os.path.join('/tmp', filename)
         try:
+            print("Downloading file: {0}".format(path))
             _, obj_contents = self.conn.get_object(self.bucket_name, path)
             with open(local_path, 'wb') as local_file:
                 local_file.write(obj_contents)
