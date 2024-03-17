@@ -170,4 +170,5 @@ SHOT
 *.trc
 *.osrl
 data.json
+benchmarks
 scripts/password.sh

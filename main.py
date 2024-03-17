@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import argparse
 import json
 import os
@@ -10,7 +12,6 @@ from git import Repo
 
 from allas import Allas
 from github_api import GithubAPI
-from github_data import GithubData
 from utils import is_git_repo
 
 
@@ -143,6 +144,8 @@ def main():
         with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as fh:
             print('# Benchmark results', file=fh)
             print(markdown_table, file=fh)
+    else:
+        print(markdown_table)
 
     comparison_data = []
     for benchmark in benchmark_names:
@@ -167,14 +170,125 @@ def main():
         handle_upload(data_json)
 
     if args.compare:
-        handle_comparison(comparison_data)
+        changes = prepare_comparison(comparison_data)
+        if changes is not None:
+            headers = ["Benchmark", "Status changed", "New status", "Old status", "Substatus changed", "New substatus",
+                       "Old substatus", "Time changed", "Time change", "New time", "Old time"]
+            markdown_data = []
+            for change in changes.keys():
+                markdown_data.append([
+                    change,
+                    str(changes[change].get("status_change", "")),
+                    changes[change].get("current", {}).get("status", ""),
+                    changes[change].get("previous", {}).get("status", ""),
+                    str(changes[change].get("substatus_change", "")),
+                    changes[change].get("current", {}).get("substatus", ""),
+                    changes[change].get("previous", {}).get("substatus", ""),
+                    str(changes[change].get("time_changed", "")),
+                    changes[change].get("time_change", ""),
+                    changes[change].get("current", {}).get("time", ""),
+                    changes[change].get("previous", {}).get("time", ""),
+                ])
+            change_table = generate_markdown_table(headers, markdown_data)
+            if is_ci:
+                with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as fh:
+                    print('# Comparison to previous commit', file=fh)
+                    print(change_table, file=fh)
+            else:
+                print(change_table)
+
+            # Finally write the data to a file, and prepare it for upload
+            with open('comparison.json', 'w') as json_file:
+                json.dump(changes, json_file, sort_keys=True, indent=4)
+
+            # Move the file to the benchmark destination.
+            data_json = "{0}/comparison.json".format(benchmark_dest)
+            os.rename("comparison.json", data_json)
+
+    else:
+        print("Failed to get changes or no changes detected, see log for more information")
 
 
-def handle_comparison(comparison_data):
-    pass
+def get_comparison_dict(comparison_data: list, previous_result: list) -> dict | None:
+    """
+    Matches the current + previous data and returns a comparison array, that can be used by other functions.
+    """
+    comparison_by_keys = {result["name"]: result for result in comparison_data}
+    previous_by_keys = {result["name"]: result for result in previous_result}
+
+    matches = set(comparison_by_keys.keys()).intersection(previous_by_keys.keys())
+
+    if not matches:
+        print("No common benchmarks found between this run and the previous run")
+        return None
+
+    all_changes = {}
+
+    for match in matches:
+        current = comparison_by_keys[match]
+        previous = previous_by_keys[match]
+        changes = {}
+        # We check if the key exists, just so we don't get false positives like "" != "" = True
+        if "status" in current and "status" in previous:
+            changes["status_change"] = current.get("status", "") != previous.get("status", "")
+
+        if "substatus" in current and "substatus" in previous:
+            changes["substatus_change"] = current.get("substatus", "") != previous.get("substatus", "")
+
+        if "time" in current and "time" in previous:
+            changes["time_changed"] = current["time"] != previous["time"]
+            # Here we do not use any defaults, as to once again not get false positives, if the value somehow
+            # does not pass
+            try:
+                changes["time_change"] = float(current["time"]) - float(previous["time"])
+            except ValueError as e:
+                print("Error parsing time: {0}".format(e))
+
+        if len(changes) == 0:
+            continue
+
+        all_changes[match] = {
+            "changes": changes,
+            "current": current,
+            "previous": previous
+        }
+
+    if len(all_changes) == 0:
+        return None
+
+    return all_changes
+
+
+def prepare_comparison(comparison_data: list) -> dict | None:
+    """
+    Handles checking if there is a previous commit to compare, then downloads the file and reads in its contents.
+    continues on to comparison if this works.
+    """
+    gh_api = GithubAPI()
+    allas = Allas()
+    previous_commit = gh_api.get_commit_from_head(1)
+    if previous_commit is None:
+        print("No previous commit found, exiting comparison")
+        return None
+
+    downloaded_file_path = allas.download_file(previous_commit.sha, "{0}.json".format(previous_commit.sha))
+    if downloaded_file_path is None:
+        print("No comparison file found in Allas, exiting comparison")
+        return None
+
+    try:
+        with open(downloaded_file_path, "r") as file:
+            file_contents = json.load(file)
+            return get_comparison_dict(comparison_data, file_contents)
+    except OSError as e:
+        print("Error opening temporary file: {0}".format(e))
+        return None
 
 
 def handle_upload(data_json):
+    """
+    Uploads the passed file to Allas
+    """
     gh_api = GithubAPI()
     allas = Allas()
     # Create the bucket
@@ -183,8 +297,10 @@ def handle_upload(data_json):
     allas.upload_file(current_commit.sha, data_json)
 
 
-# Handles generating the Markdown table, used in GH Actions Job Summary.
 def generate_markdown_table(headers, data):
+    """
+    Handles generating the Markdown table, used in GH Actions Job Summary.
+    """
     # Create the header row
     header_row = "| " + " | ".join(headers) + " |"
     # Create the separator row

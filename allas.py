@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import sys
 
@@ -52,17 +54,36 @@ class Allas:
             self.conn.put_container(self.bucket_name)
 
     # Uploads the file to the correct place.
-    def upload_file(self, sha: str, file: str):
+    def upload_file(self, sha: str, file: str) -> bool:
         path = self.gh_data.construct_valid_data(sha)
         if not path:
             return False
         path = "{0}data.json".format(path)
         with open(file, "r") as f:
             print("Uploading file {0}".format(file))
-            self.conn.put_object(
-                self.bucket_name,
-                path,
-                contents=f.read(),
-                content_type="application/json"
-            )
-            print("File uploaded")
+            try:
+                self.conn.put_object(
+                    self.bucket_name,
+                    path,
+                    contents=f.read(),
+                    content_type="application/json"
+                )
+                print("File uploaded")
+                return True
+            except swiftclient.ClientException as e:
+                print("Error uploading file: {0}".format(e))
+
+    def download_file(self, sha: str, filename: str) -> None | str:
+        path = self.gh_data.construct_valid_data(sha)
+        path = "{0}data.json".format(path)
+        print(path)
+        local_path = os.path.join('/tmp', filename)
+        try:
+            _, obj_contents = self.conn.get_object(self.bucket_name, path)
+            with open(local_path, 'wb') as local_file:
+                local_file.write(obj_contents)
+            print("File {0} downloaded to {1}".format(filename, local_path))
+        except swiftclient.ClientException as e:
+            print("Error downloading file: {0}".format(e))
+            return None
+        return local_path
