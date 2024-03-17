@@ -149,10 +149,16 @@ def main():
 
     comparison_data = []
     for benchmark in benchmark_names:
+        try:
+            time = float(bench_times[benchmark]["Total"])
+        except ValueError as e:
+            time = bench_times[benchmark]["Total"]
+            print("Error converting runtime to float: {0}".format(e))
+
         comparison_data.append(
             {
                 "name": benchmark,
-                "time": bench_times[benchmark]["Total"],
+                "time": time,
                 "status": statuses[benchmark]["status"],
                 "substatus": statuses[benchmark]["substatus"]
             }
