@@ -22,12 +22,15 @@ def main():
     )
     parser.add_argument("-c", "--compare", action="store_true")
     parser.add_argument("-s", "--store-result", action="store_true")
+    parser.add_argument("-r", "--runs", type=int, default=5, help="Number of runs to perform")
     args = parser.parse_args()
 
     benchmark_folder = os.environ.get("INPUT_BENCHMARK_FOLDER")
     benchmark_type = os.environ.get("INPUT_BENCHMARK_TYPE")
     benchmarks = os.environ.get("INPUT_BENCHMARKS")
     shot_executable = os.environ.get("INPUT_SHOT_EXECUTABLE")
+    is_gams = os.environ.get("INPUT_IS_GAMS")
+    is_gurobi = os.environ.get("INPUT_IS_GUROBI")
     is_ci = os.environ.get("CI") is not None
     if benchmark_folder is None or benchmark_type is None or shot_executable is None:
         print("Missing required input")
@@ -199,6 +202,14 @@ def main():
             if is_ci:
                 with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as fh:
                     print('# Comparison to previous commit', file=fh)
+                    if is_gams and is_gurobi:
+                        print("## GAMS/Gurobi", file=fh)
+                    elif is_gams:
+                        print("## GAMS", file=fh)
+                    elif is_gurobi:
+                        print("## Gurobi", file=fh)
+                    else:
+                        print("## Ipopt/Cbc", file=fh)
                     print(change_table, file=fh)
             else:
                 print(change_table)
