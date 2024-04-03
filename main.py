@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import sys
@@ -22,7 +23,7 @@ def main():
     )
     parser.add_argument("-c", "--compare", action="store_true")
     parser.add_argument("-s", "--store-result", action="store_true")
-    parser.add_argument("-r", "--runs", type=int, default=5, help="Number of runs to perform")
+    parser.add_argument("-r", "--runs", type=int, default=1, help="Number of runs to perform")
     args = parser.parse_args()
 
     benchmark_folder = os.environ.get("INPUT_BENCHMARK_FOLDER")
@@ -86,88 +87,112 @@ def main():
     os.chdir(os.path.dirname(shot_executable))
 
     # Run the benchmarks
-    for benchmark in benchmarks_paths:
-        print("Running benchmark: {0}".format(benchmark))
-        benchmark_name = os.path.basename(benchmark).split(".")[0]
-        os.system("{0} {1} --trc {2}.trc --log {2}.log".format(shot_executable, benchmark, benchmark_name))
+    for i in range(args.runs):
+        for benchmark in benchmarks_paths:
+            print("Running benchmark: {0}".format(benchmark))
+            benchmark_name = os.path.basename(benchmark).split(".")[0]
+            os.system(
+                "{0} {1} --trc {2}-run-{3}.trc --log {2}-run-{3}.log --osrl {2}-run-{3}.osrl".format(shot_executable,
+                                                                                                     benchmark,
+                                                                                                     benchmark_name, i))
 
     if is_ci:
         with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
             print("benchmarks={0}".format(",".join(benchmarks)), file=fh)
 
-    # Move the osrl files to a separate folder.
+    # Move the files to a separate folder.
     current_path = os.path.dirname(os.path.abspath(getsourcefile(lambda: 0)))
     benchmark_dest = "{0}/benchmarks".format(current_path)
     os.makedirs(benchmark_dest, exist_ok=True)
     benchmark_names = []
     for benchmark in benchmarks_paths:
         benchmark_names.append(os.path.basename(benchmark).split(".")[0])
+    for i in range(args.runs):
+        for benchmark in benchmark_names:
+            os.rename("{0}/{1}-run-{2}.osrl".format(os.path.dirname(shot_executable), benchmark, i),
+                      "{0}/{1}-run-{2}.osrl".format(benchmark_dest, benchmark, i))
+            os.rename("{0}/{1}-run-{2}.trc".format(os.path.dirname(shot_executable), benchmark, i),
+                      "{0}/{1}-run-{2}.trc".format(benchmark_dest, benchmark, i))
+            os.rename("{0}/{1}-run-{2}.log".format(os.path.dirname(shot_executable), benchmark, i),
+                      "{0}/{1}-run-{2}.log".format(benchmark_dest, benchmark, i))
 
+    # We parse the osrl files and extract the needed information.
+    bench_times = defaultdict(lambda: defaultdict(dict))
+    statuses = defaultdict(lambda: defaultdict(dict))
     for benchmark in benchmark_names:
-        os.rename("{0}/{1}.osrl".format(os.path.dirname(shot_executable), benchmark),
-                  "{0}/{1}.osrl".format(benchmark_dest, benchmark))
-        os.rename("{0}/{1}.trc".format(os.path.dirname(shot_executable), benchmark),
-                  "{0}/{1}.trc".format(benchmark_dest, benchmark))
-        os.rename("{0}/{1}.log".format(os.path.dirname(shot_executable), benchmark),
-                  "{0}/{1}.log".format(benchmark_dest, benchmark))
+        for i in range(args.runs):
+            tree = ET.parse('{0}/{1}-run-{2}.osrl'.format(benchmark_dest, benchmark, i))
+            root = tree.getroot()
+            times = {}
+            for element in root.iter('{os.optimizationservices.org}time'):
+                times[element.attrib['type']] = element.text
+            bench_times[benchmark][i] = times
 
-        # We parse the osrl files and extract the needed information.
-    bench_times = {}
-    statuses = defaultdict(lambda: {"status": "", "substatus": ""})
-    for benchmark in benchmark_names:
-        tree = ET.parse('{0}/{1}.osrl'.format(benchmark_dest, benchmark))
-        root = tree.getroot()
-        times = {}
-        for element in root.iter('{os.optimizationservices.org}time'):
-            times[element.attrib['type']] = element.text
-        bench_times[benchmark] = times
+            statuses[benchmark][i] = defaultdict(lambda: {"status": "", "substatus": ""})
 
-        for element in root.iter('{os.optimizationservices.org}status'):
-            statuses[benchmark]['status'] = element.attrib['type']
+            for element in root.iter('{os.optimizationservices.org}status'):
+                statuses[benchmark][i]['status'] = element.attrib['type']
 
-        for element in root.iter('{os.optimizationservices.org}substatus'):
-            statuses[benchmark]['substatus'] = element.attrib['type']
+            for element in root.iter('{os.optimizationservices.org}substatus'):
+                statuses[benchmark][i]['substatus'] = element.attrib['type']
 
-    # We generate the Markdown table
-    headers = ["Benchmark", "Total Time", "Status", "Substatus"]
-    data = []
-    for benchmark in benchmark_names:
-        data.append(
-            [
-                benchmark,
-                bench_times[benchmark]["Total"],
-                statuses[benchmark]["status"],
-                statuses[benchmark]["substatus"]
-            ]
-        )
-
-    markdown_table = generate_markdown_table(headers, data)
-    # We write the Markdown table to the output file
     if is_ci:
-        with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as fh:
-            print('# Benchmark results', file=fh)
-            print(markdown_table, file=fh)
+        file = os.environ['GITHUB_STEP_SUMMARY']
     else:
-        print(markdown_table)
+        file = None
+
+    with smart_open(file) as fh:
+        print('# Benchmark results', file=fh)
+        for benchmark in benchmark_names:
+            print("## {0}".format(benchmark), file=fh)
+            times = []
+            for i in range(args.runs):
+                # We generate the Markdown table
+                headers = ["Benchmark", "Total Time", "Status", "Substatus"]
+                data = [
+                    [
+                        "{0} Run #{1}".format(benchmark, str(i)),
+                        bench_times[benchmark][i]["Total"],
+                        statuses[benchmark][i]["status"],
+                        statuses[benchmark][i]["substatus"]
+                    ]
+                ]
+
+                times.append(bench_times[benchmark][i]["Total"])
+
+                markdown_table = generate_markdown_table(headers, data)
+                # We write the Markdown table to the output file
+                print(markdown_table, file=fh)
+            times = [float(time) for time in times]
+            print("Average time: {0}".format(sum(times) / len(times)), file=fh)
+            print("Median time: {0}".format(sorted(times)[len(times) // 2]), file=fh)
 
     comparison_data = []
     for benchmark in benchmark_names:
-        try:
-            time = float(bench_times[benchmark]["Total"])
-        except ValueError as e:
-            time = bench_times[benchmark]["Total"]
-            print("Error converting runtime to float: {0}".format(e))
+        run_data = []
+        for i in range(args.runs):
+            try:
+                time = float(bench_times[benchmark][i]["Total"])
+            except ValueError as e:
+                time = bench_times[benchmark][i]["Total"]
+                print("Error converting runtime to float: {0}".format(e))
+            run_data.append({"time": time, "status": statuses[benchmark][i]["status"],
+                             "substatus": statuses[benchmark][i]["substatus"]})
 
         comparison_data.append(
             {
                 "name": benchmark,
-                "time": time,
-                "status": statuses[benchmark]["status"],
-                "substatus": statuses[benchmark]["substatus"]
+                "runs": run_data,
+                "average_time": sum([float(run["time"]) for run in run_data]) / len(run_data),
+                "median_time": sorted([float(run["time"]) for run in run_data])[len(run_data) // 2],
+                "most_common_status": max(set([run["status"] for run in run_data]),
+                                          key=[run["status"] for run in run_data].count),
+                "most_common_substatus": max(set([run["substatus"] for run in run_data]),
+                                             key=[run["substatus"] for run in run_data].count)
             }
         )
 
-    # Finally write the data to a file, and prepare it for upload
+    # Finally, write the data to a file, and prepare it for upload
     with open('data.json', 'w') as json_file:
         json.dump(comparison_data, json_file, sort_keys=True, indent=4)
 
@@ -200,21 +225,22 @@ def main():
                 ])
             change_table = generate_markdown_table(headers, markdown_data)
             if is_ci:
-                with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as fh:
-                    print('# Comparison to previous commit', file=fh)
-                    if is_gams and is_gurobi:
-                        print("## GAMS/Gurobi", file=fh)
-                    elif is_gams:
-                        print("## GAMS", file=fh)
-                    elif is_gurobi:
-                        print("## Gurobi", file=fh)
-                    else:
-                        print("## Ipopt/Cbc", file=fh)
-                    print(change_table, file=fh)
+                file = os.environ['GITHUB_STEP_SUMMARY']
             else:
-                print(change_table)
+                file = None
+            with smart_open(file) as fh:
+                print('# Comparison to previous commit', file=fh)
+                if is_gams and is_gurobi:
+                    print("## GAMS/Gurobi", file=fh)
+                elif is_gams:
+                    print("## GAMS", file=fh)
+                elif is_gurobi:
+                    print("## Gurobi", file=fh)
+                else:
+                    print("## Ipopt/Cbc", file=fh)
+                print(change_table, file=fh)
 
-            # Finally write the data to a file, and prepare it for upload
+            # Finally, write the data to a file, and prepare it for upload
             with open('comparison.json', 'w') as json_file:
                 json.dump(changes, json_file, sort_keys=True, indent=4)
 
@@ -332,6 +358,20 @@ def generate_markdown_table(headers, data):
 
     # Return the table as a string
     return "\n".join(markdown_table)
+
+
+@contextlib.contextmanager
+def smart_open(filename=None):
+    if filename:
+        fh = open(filename, 'w')
+    else:
+        fh = sys.stdout
+
+    try:
+        yield fh
+    finally:
+        if fh is not sys.stdout:
+            fh.close()
 
 
 if __name__ == "__main__":

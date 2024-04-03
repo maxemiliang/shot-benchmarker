@@ -34,4 +34,4 @@ else
     echo "No requirements.txt file found, skipping check."
 fi
 rm current_requirements.txt
-python main.py -c -s
+python main.py -r 5
