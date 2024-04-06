@@ -338,24 +338,34 @@ def get_comparison_dict(comparison_data: list, previous_result: list) -> dict | 
     return all_changes
 
 
-def prepare_comparison(comparison_data: list) -> dict | None:
+def prepare_comparison(comparison_data: list, current_check: int = 1) -> dict | None:
     """
     Handles checking if there is a previous commit to compare, then downloads the file and reads in its contents.
     continues on to comparison if this works.
+    If no previous commit is found, it will try to find previous commits (max 5 times) and otherwise exit.
     """
     gh_api = GithubAPI()
     allas = Allas()
-    previous_commit = gh_api.get_commit_from_head(1)
+    previous_commit = gh_api.get_commit_from_head(current_check)
     if previous_commit is None:
         print("No previous commit found, exiting comparison")
         return None
     if args.sha is not None:
         previous_commit = gh_api.repo.get_commit(args.sha)
+        current_check = None
 
     downloaded_file_path = allas.download_file(previous_commit.sha, "{0}.json".format(previous_commit.sha))
     if downloaded_file_path is None:
-        print("No comparison file found in Allas, exiting comparison")
-        return None
+        if current_check is None:
+            print("No comparison file found in Allas, exiting comparison")
+            return None
+        print("No comparison file found for commit {0} in Allas, trying older commits".format(previous_commit.sha))
+        if current_check <= 5:
+            return prepare_comparison(comparison_data, current_check + 1)
+        else:
+            print("No comparison file found for commit {0} in Allas, exiting comparison".format(previous_commit.sha))
+            print("Attempted to find a previous commit, but failed, exiting comparison")
+            return None
 
     try:
         with open(downloaded_file_path, "r") as file:
@@ -413,4 +423,6 @@ def smart_open(filename=None):
 
 
 if __name__ == "__main__":
+
     main()
+
