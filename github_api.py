@@ -33,3 +33,15 @@ class GithubAPI:
         if commits.totalCount < i + 1:
             return None
         return commits[i]
+
+    def is_commit(self, sha: str) -> Commit | None:
+        """
+        Checks if a commit exists with the given SHA
+        :param sha: The SHA to check
+        :return Commit | None:
+        """
+        try:
+            commit = self.repo.get_commit(sha)
+            return True
+        except GithubException:
+            return False

@@ -15,16 +15,23 @@ from allas import Allas
 from github_api import GithubAPI
 from utils import is_git_repo
 
+parser = argparse.ArgumentParser(
+    prog="Shot benchmarker",
+    description="Used to benchmark the SHOT program"
+)
+parser.add_argument("-c", "--compare", action="store_true")
+parser.add_argument("-s", "--store-result", action="store_true")
+parser.add_argument("-r", "--runs", type=int, default=1, help="Number of runs to perform")
+parser.add_argument("--sha", type=str, help="SHA of the commit to compare to")
+args = parser.parse_args()
+
 
 def main():
-    parser = argparse.ArgumentParser(
-        prog="Shot benchmarker",
-        description="Used to benchmark the SHOT program"
-    )
-    parser.add_argument("-c", "--compare", action="store_true")
-    parser.add_argument("-s", "--store-result", action="store_true")
-    parser.add_argument("-r", "--runs", type=int, default=1, help="Number of runs to perform")
-    args = parser.parse_args()
+    if args.sha is not None and args.compare is False:
+        print("Cannot compare to a specific SHA without passing --compare")
+        sys.exit(1)
+    if args.sha is not None:
+        check_sha(args.sha)
 
     benchmark_folder = os.environ.get("INPUT_BENCHMARK_FOLDER")
     benchmark_type = os.environ.get("INPUT_BENCHMARK_TYPE")
@@ -124,12 +131,14 @@ def main():
             tree = ET.parse('{0}/{1}-run-{2}.osrl'.format(benchmark_dest, benchmark, i))
             root = tree.getroot()
             times = {}
+            # Save the times
             for element in root.iter('{os.optimizationservices.org}time'):
                 times[element.attrib['type']] = element.text
             bench_times[benchmark][i] = times
 
             statuses[benchmark][i] = defaultdict(lambda: {"status": "", "substatus": ""})
 
+            # Save the statuses
             for element in root.iter('{os.optimizationservices.org}status'):
                 statuses[benchmark][i]['status'] = element.attrib['type']
 
@@ -147,36 +156,34 @@ def main():
             print("## {0}".format(benchmark), file=fh)
             times = []
             for i in range(args.runs):
+                # Convert the time to a float
+                try:
+                    bench_times[benchmark][i]["Total"] = float(bench_times[benchmark][i]["Total"])
+                except ValueError:
+                    print("Error while parsing time for {0}".format(benchmark), file=fh)
+                    continue
                 # We generate the Markdown table
                 headers = ["Benchmark", "Total Time", "Status", "Substatus"]
                 data = [
                     [
                         "{0} Run #{1}".format(benchmark, str(i)),
-                        bench_times[benchmark][i]["Total"],
+                        round(bench_times[benchmark][i]["Total"], 2),
                         statuses[benchmark][i]["status"],
                         statuses[benchmark][i]["substatus"]
                     ]
                 ]
-
                 times.append(bench_times[benchmark][i]["Total"])
-
                 markdown_table = generate_markdown_table(headers, data)
                 # We write the Markdown table to the output file
                 print(markdown_table, file=fh)
-            times = [float(time) for time in times]
-            print("Average time: {0}".format(sum(times) / len(times)), file=fh)
-            print("Median time: {0}".format(sorted(times)[len(times) // 2]), file=fh)
+            print("Average time: {0}".format(round(sum(times) / len(times), 2)), file=fh)
+            print("Median time: {0}".format(round(sorted(times)[len(times) // 2], 2)), file=fh)
 
     comparison_data = []
     for benchmark in benchmark_names:
         run_data = []
         for i in range(args.runs):
-            try:
-                time = float(bench_times[benchmark][i]["Total"])
-            except ValueError as e:
-                time = bench_times[benchmark][i]["Total"]
-                print("Error converting runtime to float: {0}".format(e))
-            run_data.append({"time": time, "status": statuses[benchmark][i]["status"],
+            run_data.append({"time": bench_times[benchmark][i]["Total"], "status": statuses[benchmark][i]["status"],
                              "substatus": statuses[benchmark][i]["substatus"]})
 
         comparison_data.append(
@@ -210,18 +217,32 @@ def main():
                        "Old substatus", "Time changed", "Time change", "New time", "Old time"]
             markdown_data = []
             for change in changes.keys():
+                current_changes = changes[change].get("changes", {})
+                if current_changes.get("status_change", False):
+                    status_change = ":white_check_mark:"
+                else:
+                    status_change = ":x:"
+                if current_changes.get("substatus_change", False):
+                    substatus_change = ":white_check_mark:"
+                else:
+                    substatus_change = ":x:"
+                if current_changes.get("changed_time", False):
+                    time_change = ":white_check_mark:"
+                else:
+                    time_change = ":x:"
+
                 markdown_data.append([
                     change,
-                    str(changes[change].get("status_change", "")),
-                    changes[change].get("current", {}).get("status", ""),
-                    changes[change].get("previous", {}).get("status", ""),
-                    str(changes[change].get("substatus_change", "")),
-                    changes[change].get("current", {}).get("substatus", ""),
-                    changes[change].get("previous", {}).get("substatus", ""),
-                    str(changes[change].get("time_changed", "")),
-                    changes[change].get("time_change", ""),
-                    changes[change].get("current", {}).get("time", ""),
-                    changes[change].get("previous", {}).get("time", ""),
+                    status_change,
+                    changes[change].get("current", {}).get("most_common_status", ""),
+                    changes[change].get("previous", {}).get("most_common_status", ""),
+                    substatus_change,
+                    changes[change].get("current", {}).get("most_common_substatus", ""),
+                    changes[change].get("previous", {}).get("most_common_substatus", ""),
+                    time_change,
+                    current_changes.get("changed_time", 0),
+                    round(changes[change].get("current", {}).get("average_time", ""), 2),
+                    round(changes[change].get("previous", {}).get("average_time", ""), 2)
                 ])
             change_table = generate_markdown_table(headers, markdown_data)
             if is_ci:
@@ -252,6 +273,20 @@ def main():
         print("Failed to get changes or no changes detected, see log for more information")
 
 
+def check_sha(sha):
+    if sha is None:
+        return
+    try:
+        gh = GithubAPI()
+        commit = gh.is_commit(sha)
+        if commit is None:
+            print("Commit {0} not found".format(sha))
+            sys.exit(1)
+    except Exception as e:
+        print("Error while getting commit {0}: {1}".format(sha, e))
+        sys.exit(1)
+
+
 def get_comparison_dict(comparison_data: list, previous_result: list) -> dict | None:
     """
     Matches the current + previous data and returns a comparison array, that can be used by other functions.
@@ -272,20 +307,21 @@ def get_comparison_dict(comparison_data: list, previous_result: list) -> dict | 
         previous = previous_by_keys[match]
         changes = {}
         # We check if the key exists, just so we don't get false positives like "" != "" = True
-        if "status" in current and "status" in previous:
-            changes["status_change"] = current.get("status", "") != previous.get("status", "")
+        if "most_common_status" in current and "most_common_status" in previous:
+            changes["status_change"] = current.get("most_common_status", "") != previous.get("most_common_status", "")
 
-        if "substatus" in current and "substatus" in previous:
-            changes["substatus_change"] = current.get("substatus", "") != previous.get("substatus", "")
+        if "most_common_substatus" in current and "most_common_substatus" in previous:
+            changes["substatus_change"] = current.get("most_common_substatus", "") != previous.get(
+                "most_common_substatus", "")
 
-        if "time" in current and "time" in previous:
-            changes["time_changed"] = current["time"] != previous["time"]
+        if "average_time" in current and "average_time" in previous:
+            changes["time_has_changed"] = current["average_time"] != previous["average_time"]
             # Here we do not use any defaults, as to once again not get false positives, if the value somehow
             # does not pass
             try:
-                changes["time_change"] = float(current["time"]) - float(previous["time"])
+                changes["changed_time"] = float(current["average_time"]) - float(previous["average_time"])
             except ValueError as e:
-                print("Error parsing time: {0}".format(e))
+                print("Error parsing average_time: {0}".format(e))
 
         if len(changes) == 0:
             continue
@@ -313,6 +349,8 @@ def prepare_comparison(comparison_data: list) -> dict | None:
     if previous_commit is None:
         print("No previous commit found, exiting comparison")
         return None
+    if args.sha is not None:
+        previous_commit = gh_api.repo.get_commit(args.sha)
 
     downloaded_file_path = allas.download_file(previous_commit.sha, "{0}.json".format(previous_commit.sha))
     if downloaded_file_path is None:
