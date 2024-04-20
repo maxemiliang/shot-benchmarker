@@ -47,6 +47,7 @@ def main():
         print("SHOT executable does not exist")
         sys.exit(1)
 
+    print("SHOT executable: ", shot_executable)
     if benchmarks is None or benchmarks == "" or benchmarks == 'all':
         benchmarks = "all"
     else:
@@ -155,6 +156,8 @@ def main():
         for benchmark in benchmark_names:
             print("## {0}".format(benchmark), file=fh)
             times = []
+            headers = ["Benchmark", "Total Time", "Status", "Substatus"]
+            data = []
             for i in range(args.runs):
                 # Convert the time to a float
                 try:
@@ -163,19 +166,16 @@ def main():
                     print("Error while parsing time for {0}".format(benchmark), file=fh)
                     continue
                 # We generate the Markdown table
-                headers = ["Benchmark", "Total Time", "Status", "Substatus"]
-                data = [
-                    [
-                        "{0} Run #{1}".format(benchmark, str(i)),
-                        round(bench_times[benchmark][i]["Total"], 2),
-                        statuses[benchmark][i]["status"],
-                        statuses[benchmark][i]["substatus"]
-                    ]
-                ]
+                data.append([
+                    "{0} Run #{1}".format(benchmark, str(i)),
+                    round(bench_times[benchmark][i]["Total"], 2),
+                    statuses[benchmark][i]["status"],
+                    statuses[benchmark][i]["substatus"]
+                ])
                 times.append(bench_times[benchmark][i]["Total"])
-                markdown_table = generate_markdown_table(headers, data)
-                # We write the Markdown table to the output file
-                print(markdown_table, file=fh)
+            markdown_table = generate_markdown_table(headers, data)
+            # We write the Markdown table to the output file
+            print(markdown_table, file=fh)
             print("Average time: {0}".format(round(sum(times) / len(times), 2)), file=fh)
             print("Median time: {0}".format(round(sorted(times)[len(times) // 2], 2)), file=fh)
 
@@ -413,7 +413,7 @@ def smart_open(filename=None):
     if filename:
         fh = open(filename, 'w')
     else:
-        fh = sys.stdout
+        fh = open("results.md", 'a')
 
     try:
         yield fh
@@ -423,6 +423,4 @@ def smart_open(filename=None):
 
 
 if __name__ == "__main__":
-
     main()
-

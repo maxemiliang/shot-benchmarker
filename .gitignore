@@ -166,7 +166,7 @@ SHOT_benchmark_problems
 bin/
 include/
 lib/
-SHOT
+SHOT-free
 *.trc
 *.osrl
 data.json
