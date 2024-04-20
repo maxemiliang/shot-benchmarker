@@ -411,7 +411,7 @@ def generate_markdown_table(headers, data):
 @contextlib.contextmanager
 def smart_open(filename=None):
     if filename:
-        fh = open(filename, 'w')
+        fh = open(filename, 'a')
     else:
         fh = open("results.md", 'a')
 
