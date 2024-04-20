@@ -37,8 +37,8 @@ def main():
     benchmark_type = os.environ.get("INPUT_BENCHMARK_TYPE")
     benchmarks = os.environ.get("INPUT_BENCHMARKS")
     shot_executable = os.environ.get("INPUT_SHOT_EXECUTABLE")
-    is_gams = os.environ.get("INPUT_IS_GAMS")
-    is_gurobi = os.environ.get("INPUT_IS_GUROBI")
+    is_gams = os.environ.get("INPUT_IS_GAMS") == "true"
+    is_gurobi = os.environ.get("INPUT_IS_GUROBI") == "true"
     is_ci = os.environ.get("CI") is not None
     if benchmark_folder is None or benchmark_type is None or shot_executable is None:
         print("Missing required input")
