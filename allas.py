@@ -48,17 +48,18 @@ class Allas:
         # We create the container if it does not exist.
         for container in self.containers:
             if container['name'] == self.bucket_name:
-                # We can break here, this means the else block will not be executed.
+                # We can break here.
+                # This means the else block will not be executed.
                 break
         else:
             self.conn.put_container(self.bucket_name)
 
     # Uploads the file to the correct place.
-    def upload_file(self, sha: str, file: str) -> bool:
+    def upload_file(self, sha: str, file: str, filename_suffix: str = "") -> bool:
         path = self.gh_data.construct_valid_data(sha)
         if not path:
             return False
-        path = "{0}data.json".format(path)
+        path = "{0}data{1}.json".format(path, filename_suffix)
         with open(file, "r") as f:
             print("Uploading file: {0}".format(path))
             try:
@@ -73,9 +74,9 @@ class Allas:
             except swiftclient.ClientException as e:
                 print("Error uploading file: {0}".format(e))
 
-    def download_file(self, sha: str, filename: str) -> None | str:
+    def download_file(self, sha: str, filename: str, filename_suffix: str = "") -> None | str:
         path = self.gh_data.construct_valid_data(sha)
-        path = "{0}data.json".format(path)
+        path = "{0}data{1}.json".format(path, filename_suffix)
         local_path = os.path.join('/tmp', filename)
         try:
             print("Downloading file: {0}".format(path))

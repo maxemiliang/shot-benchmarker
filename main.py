@@ -40,6 +40,7 @@ def main():
     is_gams = os.environ.get("INPUT_IS_GAMS") == "true"
     is_gurobi = os.environ.get("INPUT_IS_GUROBI") == "true"
     is_ci = os.environ.get("CI") is not None
+    comparison_suffix = os.environ.get("INPUT_COMPARISON_SUFFIX") or ""
     if benchmark_folder is None or benchmark_type is None or shot_executable is None:
         print("Missing required input")
         sys.exit(1)
@@ -153,6 +154,7 @@ def main():
 
     with smart_open(file) as fh:
         print('# Benchmark results', file=fh)
+        print_benchmark_type(fh, is_gams, is_gurobi)
         for benchmark in benchmark_names:
             print("## {0}".format(benchmark), file=fh)
             times = []
@@ -204,14 +206,14 @@ def main():
         json.dump(comparison_data, json_file, sort_keys=True, indent=4)
 
     # Move the file to the benchmark destination.
-    data_json = "{0}/data.json".format(benchmark_dest)
+    data_json = "{0}/data{1}.json".format(benchmark_dest, comparison_suffix)
     os.rename("data.json", data_json)
 
     if args.store_result:
-        handle_upload(data_json)
+        handle_upload(data_json, comparison_suffix)
 
     if args.compare:
-        changes = prepare_comparison(comparison_data)
+        changes = prepare_comparison(comparison_data, comparison_suffix=comparison_suffix)
         if changes is not None:
             headers = ["Benchmark", "Status changed", "New status", "Old status", "Substatus changed", "New substatus",
                        "Old substatus", "Time changed", "Time change", "New time", "Old time"]
@@ -240,7 +242,7 @@ def main():
                     changes[change].get("current", {}).get("most_common_substatus", ""),
                     changes[change].get("previous", {}).get("most_common_substatus", ""),
                     time_change,
-                    current_changes.get("changed_time", 0),
+                    round(current_changes.get("changed_time", 0), 2),
                     round(changes[change].get("current", {}).get("average_time", ""), 2),
                     round(changes[change].get("previous", {}).get("average_time", ""), 2)
                 ])
@@ -251,14 +253,7 @@ def main():
                 file = None
             with smart_open(file) as fh:
                 print('# Comparison to previous commit', file=fh)
-                if is_gams and is_gurobi:
-                    print("## GAMS/Gurobi", file=fh)
-                elif is_gams:
-                    print("## GAMS", file=fh)
-                elif is_gurobi:
-                    print("## Gurobi", file=fh)
-                else:
-                    print("## Ipopt/Cbc", file=fh)
+                print_benchmark_type(fh, is_gams, is_gurobi)
                 print(change_table, file=fh)
 
             # Finally, write the data to a file, and prepare it for upload
@@ -266,11 +261,25 @@ def main():
                 json.dump(changes, json_file, sort_keys=True, indent=4)
 
             # Move the file to the benchmark destination.
-            data_json = "{0}/comparison.json".format(benchmark_dest)
+            data_json = "{0}/comparison{1}.json".format(benchmark_dest, comparison_suffix)
             os.rename("comparison.json", data_json)
 
     else:
         print("Failed to get changes or no changes detected, see log for more information")
+
+
+def print_benchmark_type(fh, is_gams, is_gurobi):
+    """
+    Prints the benchmark type to the file handle
+    """
+    if is_gams and is_gurobi:
+        print("## GAMS/Gurobi", file=fh)
+    elif is_gams:
+        print("## GAMS", file=fh)
+    elif is_gurobi:
+        print("## Gurobi", file=fh)
+    else:
+        print("## Ipopt/Cbc", file=fh)
 
 
 def check_sha(sha):
@@ -338,7 +347,7 @@ def get_comparison_dict(comparison_data: list, previous_result: list) -> dict | 
     return all_changes
 
 
-def prepare_comparison(comparison_data: list, current_check: int = 1) -> dict | None:
+def prepare_comparison(comparison_data: list, current_check: int = 1, comparison_suffix: str = "") -> dict | None:
     """
     Handles checking if there is a previous commit to compare, then downloads the file and reads in its contents.
     continues on to comparison if this works.
@@ -354,14 +363,18 @@ def prepare_comparison(comparison_data: list, current_check: int = 1) -> dict | 
         previous_commit = gh_api.repo.get_commit(args.sha)
         current_check = None
 
-    downloaded_file_path = allas.download_file(previous_commit.sha, "{0}.json".format(previous_commit.sha))
+    downloaded_file_path = allas.download_file(
+        previous_commit.sha,
+        "{0}.json".format(previous_commit.sha),
+        filename_suffix=comparison_suffix
+    )
     if downloaded_file_path is None:
         if current_check is None:
             print("No comparison file found in Allas, exiting comparison")
             return None
         print("No comparison file found for commit {0} in Allas, trying older commits".format(previous_commit.sha))
         if current_check <= 5:
-            return prepare_comparison(comparison_data, current_check + 1)
+            return prepare_comparison(comparison_data, current_check + 1, comparison_suffix=comparison_suffix)
         else:
             print("No comparison file found for commit {0} in Allas, exiting comparison".format(previous_commit.sha))
             print("Attempted to find a previous commit, but failed, exiting comparison")
@@ -376,7 +389,7 @@ def prepare_comparison(comparison_data: list, current_check: int = 1) -> dict | 
         return None
 
 
-def handle_upload(data_json):
+def handle_upload(data_json, suffix: str = ""):
     """
     Uploads the passed file to Allas
     """
@@ -385,7 +398,7 @@ def handle_upload(data_json):
     # Create the bucket
     allas.create_bucket()
     current_commit = gh_api.get_commit_from_head(0)
-    allas.upload_file(current_commit.sha, data_json)
+    allas.upload_file(current_commit.sha, data_json, filename_suffix=suffix)
 
 
 def generate_markdown_table(headers, data):
